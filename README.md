@@ -1,4 +1,5 @@
-# **B**rowser **A**nd the **Q**uantum **E**ntanglement of **N**ode**JS**
+# The Browser And the Quantum Entanglement of NodeJS
+> BAQEN-JS = The **B**rowser **A**nd the **Q**uantum **E**ntanglement of **N**ode**JS** 
 
 BAQEN-JS attempts to solve the issue of a *Main* process and a *Renderer* process.
 While tools like Electron allow you to create a WebApp running NodeJS, HTML, and CSS, they impose many restrictions on what code can run where.
