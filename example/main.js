@@ -15,7 +15,7 @@ baqenjs.setup();
 app.use(nocache());
 
 app.get("/", baqenjs.middleware.bind(baqenjs), (req, res) => {
-  res.send("<!DOCTYPE HTML><html><body id='main'>Hello World</body></html>");
+  res.send("<!DOCTYPE HTML><html><body id='main'>Hello World<div id='woot'>Hi</div></body></html>");
 });
 
 app.listen(port, () => {
@@ -44,6 +44,11 @@ app.listen(port, () => {
     document.addEventListener("mousemove", (event) => {
       // Show what spyed data we get
       console.log(event);
+    });
+
+    const ele = document.getElementById("woot");
+    ele.addEventListener("mouseover", () => {
+
     });
 
   }, 1000);

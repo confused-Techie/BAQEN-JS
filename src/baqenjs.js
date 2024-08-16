@@ -75,22 +75,57 @@ class BaqenJS {
     // First lets track our current JSDOM
     this.CURRENT_JSDOM = jsdom;
     // Setup Global JS Context of Browser
-    globals(jsdom);
+    const browserGlobals = globals.createGlobalThis(jsdom);
+    globals.populateGlobalThis(browserGlobals);
   }
 
   // Setup our EventListener spies on the current DOM
   spyOnEvents() {
     const addEventListener = window.EventTarget.prototype.addEventListener;
-    window.EventTarget.prototype.addEventListener = (type, callback, options) => {
-      console.log(`Someone created an event listener of ${type}`);
-      addEventListener(type, callback, options);
+    window.EventTarget.prototype.addEventListener = function (type, callback, options) {
+      // console.log(`Someone created an event listener of ${type}`);
+      console.log(this instanceof window.HTMLElement);
+      console.log(this.classList);
+      if (this instanceof window.HTMLElement) {
+        // This exposes the item that contains the EventHandler, `this` (when we
+        // ensure we are in a non-anonymous function) is the element that extends
+        // the EventTarget class. (ie everything). So we should do some light
+        // inspecting to figure out where we are, and try and find a way to reference
+        // these nodes between the different contexts. Maybe that's nodeName?
+        // Maybe it's something else, but time will tell
+        // But this is looking promising to sync events
+        console.log(`nodeName: '${this.nodeName}'; publicId: '${this.publicId}'; systemId: '${this.systemId}'; id: '${this.id}'`);
+        // I see two best methods for being able to uniquely identify a node across
+        // the boundry:
+        // 1. When returning the page we add a class to every possible node, the class
+        // is a random string, that can be prefixed with something recognizable.
+        // We could always just then lookup by this className
+        // 2. We craft a query string on the fly, combining data like nodeName,
+        // id, classes, and then attempt to find the singular node we care about
+        // that way.
+        // 3. We only add a unique class name to a node when there's a reference to it.
+        // Such as in this script. We save that reference, and then we can
+        // target the classname that way. Meaning whenever you add an event listener
+        // a unique classname would be inserted into the element with the listener.
+        // This means we aren't doing any more work than needed, while accomplishing
+        // the same thing. NOTE: we may not be able to do this on some elements
+        // such as the top level document element, but in those cases we could
+        // emit a warning, then attach ourselves to the nodeName? Or attempt to add
+        // a unique ID, as that's implemented on the Node object itself <<< this is the answer
+      }
+      if (this?.style?.color) {
+        console.log(this);
+        this.style.color = "blue";
+      }
+      //addEventListener(type, callback, options);
     };
+    //window.EventTarget.prototype = Object.create(EventTarget.prototype);
 
-    const removeEventListener = window.EventTarget.prototype.removeEventListener;
-    window.EventTarget.prototype.removeEventListener = (type, listener, options) => {
-      console.log(`Someone removed an event listener: ${type}`);
-      removeEventListener(type, listener, options);
-    };
+    // const removeEventListener = window.EventTarget.prototype.removeEventListener;
+    // window.EventTarget.prototype.removeEventListener = (type, listener, options) => {
+    //   console.log(`Someone removed an event listener: ${type}`);
+    //   removeEventListener(type, listener, options);
+    // };
   }
 
   // Setup the WebSocket connection
@@ -105,6 +140,7 @@ class BaqenJS {
       ws.on("error", console.error);
 
       ws.on("message", (data) => {
+        // TODO migrate to handleWebSocketMessage
         const msg = JSON.parse(data.toString());
 
         if (msg.type === "onload") {
@@ -120,6 +156,15 @@ class BaqenJS {
 
     server.listen(this._wss_port);
     this.WEB_SOCKET.server = server;
+  }
+
+  // Handles receiving new messages via the WebSocket
+  handleWebSocketMessage(data) {
+    const msg = JSON.parse(data.toString());
+
+    if (msg.type === "event") {
+
+    }
   }
 
   // Setup the MutationObserver

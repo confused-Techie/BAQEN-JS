@@ -13,11 +13,33 @@
   * ensure `globalThis` contains our NodeJS global context.
 */
 
-module.exports =
-function globals(jsdom) {
-  global.window = jsdom.window;
-  global.document = jsdom.window.document;
+function populateGlobalThis(globalObj) {
+  // Incrementally apply global values as needed
+  for (const key in globalObj) {
+    if (!global[key]) {
+      global[key] = globalObj[key];
+    } else {
+      // This key already exists in the NodeJS Global Context
+      // Lets just log it for now and determine if this ever matters
+      console.log(`The key '${key}' already exists in the NodeJS Global Context.`);
+    }
+  }
 
-  // Setup Browser Global Context variable to mirror NodeJS Global Context variable
-  global.globalThis = global;
+  // Setup Browser Global Context variable
+  global.globalThis = globalObj;
 }
+
+
+function createGlobalThis(jsdom) {
+  return {
+    document: jsdom.window.document,
+    parent: jsdom.window,
+    self: jsdom.window,
+    window: jsdom.window,
+  };
+}
+
+module.exports = {
+  populateGlobalThis,
+  createGlobalThis
+};
