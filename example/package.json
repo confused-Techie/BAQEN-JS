@@ -1,0 +1,15 @@
+{
+  "name": "example-baqenjs",
+  "version": "1.0.0",
+  "description": "An example of how to use BAQEN-JS",
+  "main": "main.js",
+  "scripts": {
+    "start": "node ./main.js"
+  },
+  "author": "confused-Techie",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "nocache": "^4.0.0"
+  }
+}

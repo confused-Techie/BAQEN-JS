@@ -1,0 +1,15 @@
+{
+  "name": "baqen-js",
+  "version": "1.0.0",
+  "description": "Run JavaScript in NodeJS and the browser at the same time, in one process.",
+  "main": "./src/baqenjs.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "confused-Techie",
+  "license": "MIT",
+  "dependencies": {
+    "jsdom": "^24.1.1",
+    "ws": "^8.18.0"
+  }
+}
