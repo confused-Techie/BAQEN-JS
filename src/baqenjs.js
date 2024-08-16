@@ -3,6 +3,7 @@ const path = require("path");
 const http = require("http");
 const jsdom = require("jsdom");
 const WebSocket = require("ws");
+const globals = require("./globals.js");
 const { JSDOM } = jsdom;
 
 module.exports =
@@ -74,8 +75,7 @@ class BaqenJS {
     // First lets track our current JSDOM
     this.CURRENT_JSDOM = jsdom;
     // Setup Global JS Context of Browser
-    global.window = jsdom.window;
-    global.document = jsdom.window.document;
+    globals(jsdom);
   }
 
   // Setup our EventListener spies on the current DOM
