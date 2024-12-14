@@ -7,6 +7,7 @@ socket.onopen = (event) => {
 
   // setup props
   socket.send(JSON.stringify({ type: "onload", event: {
+    target: event.target,
     screen: {
       height: window.screen.height,
       width: window.screen.width
@@ -14,11 +15,23 @@ socket.onopen = (event) => {
   }}));
 
   // mousemove event data
-  document.addEventListener("mousemove", (event) => {
-    socket.send(JSON.stringify({ type: "onmousemove", event: {
-      clientX: event.clientX,
-      clientY: event.clientY
+  document.addEventListener("mouseover", (event) => {
+    console.log(event);
+    socket.send(JSON.stringify({ type: "mouseover", event: {
+      target: {
+        nodeName: event.target.nodeName,
+        classList: Array.from(event.target.classList)
+      }
     }}));
+  });
+
+  document.addEventListener("mousemove", (event) => {
+    //console.log(event);
+    // socket.send(JSON.stringify({ type: "onmousemove", event: {
+    //   target: event.target,
+    //   clientX: event.clientX,
+    //   clientY: event.clientY
+    // }}));
   });
 
   socket.onmessage = (msg) => {

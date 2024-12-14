@@ -3,6 +3,7 @@ const path = require("path");
 const http = require("http");
 const jsdom = require("jsdom");
 const WebSocket = require("ws");
+const { v4: uuidv4 } = require("uuid");
 const globals = require("./globals.js");
 const { JSDOM } = jsdom;
 
@@ -19,6 +20,8 @@ class BaqenJS {
     };
     // Tracks the current JSDOM instance
     this.CURRENT_JSDOM = null;
+    // Contains an array of objects for mapping events to their handler
+    this.EVENT_INDEX = [];
 
     // Initialize magic numbers using opts
     this._wss_port = opts.WebSocketServerPort ?? 8081;
@@ -62,10 +65,10 @@ class BaqenJS {
       next();
     } else {
       // This is a page we already have cached, return our cached data
-      const dom = DOM_INDEX.get(req.url);
+      const dom = this.DOM_INDEX.get(req.url);
       res.send(dom.serialize());
       this.setupBrowser(dom);
-      this.setupMutationObvserver();
+      this.setupMutationObserver();
       this.spyOnEvents();
     }
   }
@@ -82,8 +85,10 @@ class BaqenJS {
   // Setup our EventListener spies on the current DOM
   spyOnEvents() {
     const addEventListener = window.EventTarget.prototype.addEventListener;
+    const EVENT_INDEX = this.EVENT_INDEX; // Track here since we won't have access
+    // to our primary `this` instance within `addEventListener`
     window.EventTarget.prototype.addEventListener = function (type, callback, options) {
-      // console.log(`Someone created an event listener of ${type}`);
+      console.log(`Someone created an event listener of ${type}`);
       console.log(this instanceof window.HTMLElement);
       console.log(this.classList);
       if (this instanceof window.HTMLElement) {
@@ -112,13 +117,23 @@ class BaqenJS {
         // such as the top level document element, but in those cases we could
         // emit a warning, then attach ourselves to the nodeName? Or attempt to add
         // a unique ID, as that's implemented on the Node object itself <<< this is the answer
+        const rand = `baqenjsEvent#${uuidv4()}`;
+
+        // Add our random ID as a class to the element
+        this.classList.add(rand);
+
+        // Track the randomly generated class, along with other event data
+        EVENT_INDEX.push({
+          class: rand,
+          event: type,
+          handler: callback
+        });
       }
-      if (this?.style?.color) {
-        console.log(this);
-        this.style.color = "blue";
-      }
+
+      // TODO Call original eventListener?
       //addEventListener(type, callback, options);
     };
+
     //window.EventTarget.prototype = Object.create(EventTarget.prototype);
 
     // const removeEventListener = window.EventTarget.prototype.removeEventListener;
@@ -139,15 +154,12 @@ class BaqenJS {
 
       ws.on("error", console.error);
 
-      ws.on("message", (data) => {
-        // TODO migrate to handleWebSocketMessage
-        const msg = JSON.parse(data.toString());
-
-        if (msg.type === "onload") {
-          //window.screen.height = msg.event.screen.height;
-          //window.screen.width = msg.event.screen.width;
-        } // other message types
-      });
+      ws.on(
+        "message",
+        this.handleWebSocketMessage.bind(this) // bind ensures we have access to the
+                                               // baqenjs class, instead of `this`
+                                               // being the WebSocket instance itself
+      );
 
       this.WEB_SOCKET.ws = ws;
     });
@@ -162,8 +174,36 @@ class BaqenJS {
   handleWebSocketMessage(data) {
     const msg = JSON.parse(data.toString());
 
-    if (msg.type === "event") {
+    // The WebSocket will generally be sending us data about events.
+    // So we will prioritize checking for those, and see if the event matches,
+    // or needs to match any listeners that we have setup.
 
+    // For now lets throw away events we don't care about
+    if (msg.event.target.nodeName === "HTML") {
+      // This event is triggered on the root HTML element of the page.
+      // This won't have a classList or anything, so we don't yet know how to
+      // target it
+      return;
+    }
+
+    console.log(msg);
+    for (let i = 0; i < this.EVENT_INDEX.length; i++) {
+      console.log(msg.event.target.classList);
+      if (
+        msg.event.target.classList.includes(this.EVENT_INDEX[i].class) &&
+        msg.type === this.EVENT_INDEX[i].event
+      ) {
+        // The event received does in fact match an event we are tracking
+        console.log("msg matched tracked event");
+        console.log("msg");
+        console.log(msg);
+        console.log("target");
+        console.log(this.EVENT_INDEX[i]);
+        this.EVENT_INDEX[i].handler({
+          ...msg.event,
+          target: document.getElementsByClassName(this.EVENT_INDEX[i].class)[0]
+        });
+      }
     }
   }
 
@@ -176,7 +216,7 @@ class BaqenJS {
         } else if (mutation.type === "attributes") {
           console.log(`The ${mutation.attributeName} attribute was modified`);
           this.updateClientDOM();
-        } // other types
+        } // TODO other types
       }
     });
 

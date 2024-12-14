@@ -15,7 +15,7 @@ baqenjs.setup();
 app.use(nocache());
 
 app.get("/", baqenjs.middleware.bind(baqenjs), (req, res) => {
-  res.send("<!DOCTYPE HTML><html><body id='main'>Hello World<div id='woot'>Hi</div></body></html>");
+  res.send("<!DOCTYPE HTML><html><body id='main'>Hello World<div id='woot' class='wow'>Hi</div></body></html>");
 });
 
 app.listen(port, () => {
@@ -36,8 +36,10 @@ app.listen(port, () => {
     element.style.color = "red";
 
     // Show that event listeners added on any part of the node tree is spyed on
-    element.addEventListener("mouseover", () => {
-      element.style.color = "blue";
+    element.addEventListener("mouseover", (event) => {
+      // Either one works!
+      //element.style.color = "blue";
+      event.target.style.color = "blue";
     });
 
     // Show that top level event listeners are also spyed on
