@@ -85,7 +85,7 @@ class BaqenJS {
   // Setup our EventListener spies on the current DOM
   spyOnEvents() {
     const addEventListener = window.EventTarget.prototype.addEventListener;
-    const EVENT_INDEX = this.EVENT_INDEX; // Track here since we won't have access
+    const baqenThis = this; // Track here since we won't have access
     // to our primary `this` instance within `addEventListener`
     window.EventTarget.prototype.addEventListener = function (type, callback, options) {
       console.log(`Someone created an event listener of ${type}`);
@@ -94,53 +94,53 @@ class BaqenJS {
       if (this instanceof window.HTMLElement) {
         // This exposes the item that contains the EventHandler, `this` (when we
         // ensure we are in a non-anonymous function) is the element that extends
-        // the EventTarget class. (ie everything). So we should do some light
-        // inspecting to figure out where we are, and try and find a way to reference
-        // these nodes between the different contexts. Maybe that's nodeName?
-        // Maybe it's something else, but time will tell
-        // But this is looking promising to sync events
+        // the EventTarget class. (ie everything).
         console.log(`nodeName: '${this.nodeName}'; publicId: '${this.publicId}'; systemId: '${this.systemId}'; id: '${this.id}'`);
-        // I see two best methods for being able to uniquely identify a node across
-        // the boundry:
-        // 1. When returning the page we add a class to every possible node, the class
-        // is a random string, that can be prefixed with something recognizable.
-        // We could always just then lookup by this className
-        // 2. We craft a query string on the fly, combining data like nodeName,
-        // id, classes, and then attempt to find the singular node we care about
-        // that way.
-        // 3. We only add a unique class name to a node when there's a reference to it.
-        // Such as in this script. We save that reference, and then we can
-        // target the classname that way. Meaning whenever you add an event listener
-        // a unique classname would be inserted into the element with the listener.
-        // This means we aren't doing any more work than needed, while accomplishing
-        // the same thing. NOTE: we may not be able to do this on some elements
-        // such as the top level document element, but in those cases we could
-        // emit a warning, then attach ourselves to the nodeName? Or attempt to add
-        // a unique ID, as that's implemented on the Node object itself <<< this is the answer
+
+        // To be able to track an event we are listening to:
+        // 1. We add a randomly generated class to the element. Ensuring it's identifiable
+        // 2. We then independently track that class along with the EventHandler func and type
+        // 3. We instruct the client to begin listening to this event.
+        // 4. Later on when the client gets the event they are listening for on the
+        // root object, it'll be passed back, allowing us to inspect the classes of what
+        // was heard, to see if it's a class we are tracking.
         const rand = `baqenjsEvent#${uuidv4()}`;
 
         // Add our random ID as a class to the element
         this.classList.add(rand);
 
         // Track the randomly generated class, along with other event data
-        EVENT_INDEX.push({
+        baqenThis.EVENT_INDEX.push({
           class: rand,
           event: type,
           handler: callback
         });
+
+        // Then we need to also inform the frontend to now listen to this event
+        baqenThis.modifyClientListeners("event_registration", type);
       }
 
-      // TODO Call original eventListener?
+      // TODO Call original `addEventListener`?
       //addEventListener(type, callback, options);
     };
 
     //window.EventTarget.prototype = Object.create(EventTarget.prototype);
 
-    // const removeEventListener = window.EventTarget.prototype.removeEventListener;
-    // window.EventTarget.prototype.removeEventListener = (type, listener, options) => {
-    //   console.log(`Someone removed an event listener: ${type}`);
-    //   removeEventListener(type, listener, options);
-    // };
+    const removeEventListener = window.EventTarget.prototype.removeEventListener;
+    window.EventTarget.prototype.removeEventListener = (type, listener, options) => {
+      // TODO
+      // We cannot fully remove an event listener, since we don't currently
+      // track how many times we have been instructed to listen for an event on
+      // the frontend.
+      // So removing a listener, when we have listened on two individual elements
+      // could mean we lose the event on another.
+
+      //console.log(`Someone removed an event listener: ${type}`);
+      //baqenThis.modifyClientListeners("event_deregistration", type);
+
+      // TODO Call original `removeEventListener`?
+      //removeEventListener(type, listener, options);
+    };
   }
 
   // Setup the WebSocket connection
@@ -156,9 +156,9 @@ class BaqenJS {
 
       ws.on(
         "message",
-        this.handleWebSocketMessage.bind(this) // bind ensures we have access to the
-                                               // baqenjs class, instead of `this`
-                                               // being the WebSocket instance itself
+        this.handleWebSocketMessage.bind(this)
+        // bind ensures we have access to the baqenjs class, instead of `this`
+        // being the WebSocket instance itself
       );
 
       this.WEB_SOCKET.ws = ws;
@@ -179,7 +179,12 @@ class BaqenJS {
     // or needs to match any listeners that we have setup.
 
     // For now lets throw away events we don't care about
-    if (msg.event.target.nodeName === "HTML") {
+    if (msg.type !== "event") {
+      return;
+    }
+    console.log(msg);
+
+    if (msg.data.target.nodeName === "HTML") {
       // This event is triggered on the root HTML element of the page.
       // This won't have a classList or anything, so we don't yet know how to
       // target it
@@ -188,10 +193,10 @@ class BaqenJS {
 
     console.log(msg);
     for (let i = 0; i < this.EVENT_INDEX.length; i++) {
-      console.log(msg.event.target.classList);
+      console.log(msg.data.target.classList);
       if (
-        msg.event.target.classList.includes(this.EVENT_INDEX[i].class) &&
-        msg.type === this.EVENT_INDEX[i].event
+        msg.data.target.classList.includes(this.EVENT_INDEX[i].class) &&
+        msg.data.type === this.EVENT_INDEX[i].event
       ) {
         // The event received does in fact match an event we are tracking
         console.log("msg matched tracked event");
@@ -200,7 +205,7 @@ class BaqenJS {
         console.log("target");
         console.log(this.EVENT_INDEX[i]);
         this.EVENT_INDEX[i].handler({
-          ...msg.event,
+          ...msg.data,
           target: document.getElementsByClassName(this.EVENT_INDEX[i].class)[0]
         });
       }
@@ -238,7 +243,7 @@ class BaqenJS {
     } else if (this.WEB_SOCKET.ws.readyState === 0) {
       // CONNECTING ReadyState
       setTimeout(() => {
-        updateClientDOM();
+        this.updateClientDOM();
       }, this._update_client_dom_refresh);
     } else if (this.WEB_SOCKET.ws.readyState === 2) {
       // CLOSING ReadyState
@@ -248,7 +253,29 @@ class BaqenJS {
       console.log("WebSocket Connection is CLOSED! Unable to update DOM");
     } else if (this.WEB_SOCKET.ws.readyState === 1) {
       // OPEN ReadyState
-      this.WEB_SOCKET.ws.send(JSON.stringify({ type: "dom", value: this.CURRENT_JSDOM.serialize() }));
+      this.WEB_SOCKET.ws.send(JSON.stringify({ type: "dom_update", value: this.CURRENT_JSDOM.serialize() }));
+    }
+  }
+
+  modifyClientListeners(modification, type) {
+    if (this.WEB_SOCKET.ws === null) {
+      setTimeout(() => {
+        this.modifyClientListeners(modification, type);
+      }, this._update_client_dom_refresh);
+    } else if (this.WEB_SOCKET.ws.readyState === 0) {
+      // CONNECTING ReadyState
+      setTimeout(() => {
+        this.modifyClientListeners(modification, type);
+      }, this._update_client_dom_refresh);
+    } else if (this.WEB_SOCKET.ws.readyState === 2) {
+      // CLOSING ReadyState
+      console.error("WebSocket Connection is CLOSING! Unable to update DOM");
+    } else if (this.WEB_SOCKET.ws.readyState === 3) {
+      // CLOSED ReadyState
+      console.error("WebSocket Connection is CLOSED! Unable to update DOM");
+    } else if (this.WEB_SOCKET.ws.readyState === 1) {
+      // OPEN ReadyState
+      this.WEB_SOCKET.ws.send(JSON.stringify({ type: modification, value: type }));
     }
   }
 

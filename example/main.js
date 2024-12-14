@@ -40,6 +40,8 @@ app.listen(port, () => {
       // Either one works!
       //element.style.color = "blue";
       event.target.style.color = "blue";
+
+      element.removeEventListener("mouseover", (event) => {});
     });
 
     // Show that top level event listeners are also spyed on
