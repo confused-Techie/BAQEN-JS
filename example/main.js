@@ -11,7 +11,7 @@ baqenjs.setup();
 
 // No Cache required; otherwise the browser caches the page response
 // and the page's HTML isn't actually sent through ExpressJS on repeated calls,
-// which means Liwa can't collect page data to construct it's virtual DOM.
+// which means BAQENJS can't collect page data to construct it's virtual DOM.
 app.use(nocache());
 
 app.get("/", baqenjs.middleware.bind(baqenjs), (req, res) => {
@@ -44,16 +44,21 @@ app.listen(port, () => {
       element.removeEventListener("mouseover", (event) => {});
     });
 
-    // Show that top level event listeners are also spyed on
-    document.addEventListener("mousemove", (event) => {
-      // Show what spyed data we get
+    document.addEventListener("copy", (event) => {
+      console.log("COPY");
       console.log(event);
     });
 
-    const ele = document.getElementById("woot");
-    ele.addEventListener("mouseover", () => {
+    // Show that top level event listeners are also spyed on
+    // document.addEventListener("mousemove", (event) => {
+    //   // Show what spyed data we get
+    //   console.log(event);
+    // });
 
-    });
+    // const ele = document.getElementById("woot");
+    // ele.addEventListener("mouseover", () => {
+    //
+    // });
 
   }, 1000);
 

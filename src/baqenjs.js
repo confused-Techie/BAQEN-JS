@@ -45,7 +45,7 @@ class BaqenJS {
 
         // Setup WebSocket Script on page
         const script = dom.window.document.createElement("script");
-        script.innerHTML = fs.readFileSync(path.join(__dirname, "./client-side-script.js"), { encoding: "utf8" });
+        script.innerHTML = this.getClientSideScript();
         dom.window.document.head.appendChild(script);
 
         // Add new HTML to DOM_INDEX
@@ -73,6 +73,23 @@ class BaqenJS {
     }
   }
 
+  getClientSideScript() {
+    let clientSideScript = "";
+
+    const files = fs.readdirSync(path.join(__dirname, "client-side"));
+
+    for (const file of files) {
+      const data = fs.readFileSync(path.join(__dirname, "client-side", file), { encoding: "utf8" });
+
+      clientSideScript += data + "\n";
+    }
+
+    // Handle replacements of the text
+    clientSideScript = clientSideScript.replace("<%%WEB_SOCKET_SERVER_PORT%%>", this._wss_port);
+
+    return clientSideScript;
+  }
+
   /// Setup the Browser Global Environment within NodeJS
   setupBrowser(jsdom) {
     // First lets track our current JSDOM
@@ -89,14 +106,9 @@ class BaqenJS {
     // to our primary `this` instance within `addEventListener`
     window.EventTarget.prototype.addEventListener = function (type, callback, options) {
       console.log(`Someone created an event listener of ${type}`);
-      console.log(this instanceof window.HTMLElement);
-      console.log(this.classList);
-      if (this instanceof window.HTMLElement) {
-        // This exposes the item that contains the EventHandler, `this` (when we
-        // ensure we are in a non-anonymous function) is the element that extends
-        // the EventTarget class. (ie everything).
-        console.log(`nodeName: '${this.nodeName}'; publicId: '${this.publicId}'; systemId: '${this.systemId}'; id: '${this.id}'`);
+      console.log(this);
 
+      if (this instanceof window.HTMLElement) {
         // To be able to track an event we are listening to:
         // 1. We add a randomly generated class to the element. Ensuring it's identifiable
         // 2. We then independently track that class along with the EventHandler func and type
@@ -117,6 +129,18 @@ class BaqenJS {
         });
 
         // Then we need to also inform the frontend to now listen to this event
+        baqenThis.modifyClientListeners("event_registration", type);
+
+      } else if (this instanceof window.Document) {
+        // Top level document element
+        // We will track this, but instead of being able to use a unique class
+        // we will use a constant string of "DOCUMENT"
+        baqenThis.EVENT_INDEX.push({
+          class: "DOCUMENT",
+          event: type,
+          handler: callback
+        });
+
         baqenThis.modifyClientListeners("event_registration", type);
       }
 
@@ -174,42 +198,36 @@ class BaqenJS {
   handleWebSocketMessage(data) {
     const msg = JSON.parse(data.toString());
 
-    // The WebSocket will generally be sending us data about events.
-    // So we will prioritize checking for those, and see if the event matches,
-    // or needs to match any listeners that we have setup.
-
-    // For now lets throw away events we don't care about
-    if (msg.type !== "event") {
-      return;
-    }
-    console.log(msg);
-
-    if (msg.data.target.nodeName === "HTML") {
-      // This event is triggered on the root HTML element of the page.
-      // This won't have a classList or anything, so we don't yet know how to
-      // target it
-      return;
-    }
-
-    console.log(msg);
-    for (let i = 0; i < this.EVENT_INDEX.length; i++) {
-      console.log(msg.data.target.classList);
-      if (
-        msg.data.target.classList.includes(this.EVENT_INDEX[i].class) &&
-        msg.data.type === this.EVENT_INDEX[i].event
-      ) {
-        // The event received does in fact match an event we are tracking
-        console.log("msg matched tracked event");
-        console.log("msg");
-        console.log(msg);
-        console.log("target");
-        console.log(this.EVENT_INDEX[i]);
-        this.EVENT_INDEX[i].handler({
-          ...msg.data,
-          target: document.getElementsByClassName(this.EVENT_INDEX[i].class)[0]
-        });
+    if (msg.type === "event") {
+      if (msg.data.target.nodeName === "HTML") {
+        // This event is triggered on the root HTML element of the page.
+        // This won't have a classList or anything, so we don't yet know how to
+        // target it
+        return;
       }
+
+      console.log(msg);
+      for (let i = 0; i < this.EVENT_INDEX.length; i++) {
+        console.log(msg.data.target.classList);
+        if (
+          msg.data.target.classList.includes(this.EVENT_INDEX[i].class) &&
+          msg.data.type === this.EVENT_INDEX[i].event
+        ) {
+          // The event received does in fact match an event we are tracking
+          console.log("msg matched tracked event");
+          console.log("msg");
+          console.log(msg);
+          console.log("target");
+          console.log(this.EVENT_INDEX[i]);
+          this.EVENT_INDEX[i].handler({
+            ...msg.data,
+            target: document.getElementsByClassName(this.EVENT_INDEX[i].class)[0]
+          });
+        }
+      }
+
     }
+
   }
 
   // Setup the MutationObserver
